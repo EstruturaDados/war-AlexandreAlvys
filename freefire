@@ -1,0 +1,435 @@
+/*
+  Nível Mestre - Sistema de Prioritização e Montagem de Componentes
+  Implementa:
+    - Struct Componente { nome[30], tipo[20], prioridade }
+    - Cadastro de até 20 componentes
+    - Bubble Sort por nome (string) - com contador de comparações
+    - Insertion Sort por tipo (string) - com contador de comparações
+    - Selection Sort por prioridade (int) - com contador de comparações
+    - Busca Binária por nome (aplicável após ordenar por nome) - conta comparações
+    - Medição de tempo de execução usando clock()
+    - Menu interativo e funções modularizadas
+  Bibliotecas usadas: stdio.h, stdlib.h, string.h, time.h
+*/
+
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <stdbool.h>
+#include <string.h>
+#include <time.h>
+
+// Código da Ilha – Edição Free Fire
+// Nível: Mestre
+// Este programa simula o gerenciamento avançado de uma mochila com componentes coletados durante a fuga de uma ilha.
+// Ele introduz ordenação com critérios e busca binária para otimizar a gestão dos recursos.
+#define MAX_COMPONENTES 20
+#define TAM_NOME 30
+#define TAM_TIPO 20
+
+int main() {
+    // Menu principal com opções:
+    // 1. Adicionar um item
+    // 2. Remover um item
+    // 3. Listar todos os itens
+    // 4. Ordenar os itens por critério (nome, tipo, prioridade)
+    // 5. Realizar busca binária por nome
+    // 0. Sair
+// Struct que representa um componente da torre
+typedef struct {
+    char nome[TAM_NOME];
+    char tipo[TAM_TIPO];
+    int prioridade; // 1 a 10
+} Componente;
+
+    // A estrutura switch trata cada opção chamando a função correspondente.
+    // A ordenação e busca binária exigem que os dados estejam bem organizados.
+// Vetor global de componentes e contador
+Componente componentes[MAX_COMPONENTES];
+int totalComponentes = 0;
+
+    return 0;
+// Enum para rastrear última ordenação aplicada
+typedef enum { NENHUMA=0, POR_NOME, POR_TIPO, POR_PRIORIDADE } TipoOrdenacao;
+TipoOrdenacao ultimaOrdenacao = NENHUMA;
+
+/* -------------------- Funções utilitárias -------------------- */
+
+// Remove newline do final da string obtida por fgets
+void removerNovaLinha(char *s) {
+    size_t len = strlen(s);
+    if (len > 0 && s[len-1] == '\n') s[len-1] = '\0';
+}
+
+// Struct Item:
+// Representa um componente com nome, tipo, quantidade e prioridade (1 a 5).
+// A prioridade indica a importância do item na montagem do plano de fuga.
+// Lê uma string com fgets de forma segura e remove newline
+void lerString(const char *prompt, char *dest, int tamanho) {
+    printf("%s", prompt);
+    if (fgets(dest, tamanho, stdin) != NULL) {
+        removerNovaLinha(dest);
+    } else {
+        // fallback caso fgets falhe
+        dest[0] = '\0';
+        int c;
+        while ((c = getchar()) != '\n' && c != EOF);
+    }
+}
+
+// Enum CriterioOrdenacao:
+// Define os critérios possíveis para a ordenação dos itens (nome, tipo ou prioridade).
+// Mostra componentes em formato tabulado
+void mostrarComponentes(Componente arr[], int n) {
+    if (n == 0) {
+        printf("\n📭 Nenhum componente cadastrado.\n");
+        return;
+    }
+    printf("\n--- COMPONENTES (total: %d) ---\n", n);
+    printf("%-3s | %-28s | %-15s | %s\n", "N", "NOME", "TIPO", "PRIORIDADE");
+    printf("----+------------------------------+-----------------+----------\n");
+    for (int i = 0; i < n; i++) {
+        printf("%-3d | %-28s | %-15s | %2d\n",
+               i+1, arr[i].nome, arr[i].tipo, arr[i].prioridade);
+    }
+}
+
+// Vetor mochila:
+// Armazena até 10 itens coletados.
+// Variáveis de controle: numItens (quantidade atual), comparacoes (análise de desempenho), ordenadaPorNome (para controle da busca binária).
+/* -------------------- Algoritmos de ordenação (instrumentados) --------------------
+   Cada algoritmo recebe:
+     - arr[] e n
+     - ponteiro para contador de comparações (long long *) que a função incrementa
+   Retorna via parâmetros: arr ordenado, comparações preenchidas.
+*/
+
+// limparTela():
+// Simula a limpeza da tela imprimindo várias linhas em branco.
+/* Bubble sort por nome (ordenação alfabética ascendente).
+   Conta comparações de string (cada strcmp entre elementos é considerada 1 comparação). */
+void bubbleSortNome(Componente arr[], int n, long long *comparacoes) {
+    *comparacoes = 0;
+    int trocou;
+    Componente tmp;
+    for (int pass = 0; pass < n-1; pass++) {
+        trocou = 0;
+        for (int j = 0; j < n-1-pass; j++) {
+            // comparando arr[j].nome com arr[j+1].nome
+            (*comparacoes)++;
+            if (strcmp(arr[j].nome, arr[j+1].nome) > 0) {
+                // troca
+                tmp = arr[j];
+                arr[j] = arr[j+1];
+                arr[j+1] = tmp;
+                trocou = 1;
+            }
+        }
+        if (!trocou) break; // já ordenado
+    }
+}
+
+// exibirMenu():
+// Apresenta o menu principal ao jogador, com destaque para status da ordenação.
+/* Insertion sort por tipo (ordena por campo tipo, em ordem alfabética).
+   Contagem: cada comparação de string (strcmp) incrementa o contador. */
+void insertionSortTipo(Componente arr[], int n, long long *comparacoes) {
+    *comparacoes = 0;
+    for (int i = 1; i < n; i++) {
+        Componente chave = arr[i];
+        int j = i - 1;
+        // enquanto j >= 0 e arr[j].tipo > chave.tipo
+        while (j >= 0) {
+            (*comparacoes)++;
+            if (strcmp(arr[j].tipo, chave.tipo) > 0) {
+                arr[j+1] = arr[j];
+                j--;
+            } else {
+                break;
+            }
+        }
+        arr[j+1] = chave;
+    }
+}
+
+// inserirItem():
+// Adiciona um novo componente à mochila se houver espaço.
+// Solicita nome, tipo, quantidade e prioridade.
+// Após inserir, marca a mochila como "não ordenada por nome".
+/* Selection sort por prioridade (ordena por prioridade decrescente - maior prioridade primeiro).
+   Contagem: cada comparação de prioridade (int) incrementa o contador. */
+void selectionSortPrioridade(Componente arr[], int n, long long *comparacoes) {
+    *comparacoes = 0;
+    for (int i = 0; i < n - 1; i++) {
+        int idxMax = i;
+        for (int j = i+1; j < n; j++) {
+            (*comparacoes)++;
+            if (arr[j].prioridade > arr[idxMax].prioridade) {
+                idxMax = j;
+            }
+        }
+        if (idxMax != i) {
+            Componente tmp = arr[i];
+            arr[i] = arr[idxMax];
+            arr[idxMax] = tmp;
+        }
+    }
+}
+
+/* -------------------- Busca binária por nome (aplicável apenas em arr ordenado por nome) -------------
+   Retorna índice do elemento encontrado ou -1 se não encontrado.
+   Conta comparações: cada comparação de strcmp com o elemento do meio conta 1 comparação.
+   Observação: strcmp retorna 0 quando iguais; se resultado <0 => chave < meio.
+*/
+int buscaBinariaPorNome(Componente arr[], int n, const char chave[], long long *comparacoes) {
+    *comparacoes = 0;
+    int left = 0, right = n - 1;
+    while (left <= right) {
+        int mid = left + (right - left)/2;
+        (*comparacoes)++;
+        int cmp = strcmp(chave, arr[mid].nome);
+        if (cmp == 0) {
+            return mid;
+        } else if (cmp < 0) {
+            right = mid - 1;
+        } else {
+            left = mid + 1;
+        }
+    }
+    return -1;
+}
+
+/* -------------------- Função medirTempo --------------------
+   Mede tempo de execução (em segundos) de um algoritmo que tenha assinatura:
+     void algoritmo(Componente[], int, long long *)
+   Parâmetros:
+     - func: ponteiro para função do tipo acima
+     - arr: vetor de componentes (será passado uma cópia externa se não quisermos alterar original)
+     - n: tamanho
+     - comparacoes: ponteiro para long long que receberá número de comparações
+   Retorna: tempo em segundos (double)
+*/
+typedef void (*AlgOrdenacao)(Componente[], int, long long *);
+
+double medirTempo(AlgOrdenacao func, Componente arr[], int n, long long *comparacoes) {
+    // Fazemos uma cópia local para que a função de medição não altere o vetor externo
+    Componente copia[MAX_COMPONENTES];
+    for (int i = 0; i < n; i++) copia[i] = arr[i];
+
+    clock_t inicio = clock();
+    func(copia, n, comparacoes);
+    clock_t fim = clock();
+
+    double segundos = (double)(fim - inicio) / (double)CLOCKS_PER_SEC;
+
+    // Copiamos o resultado ordenado de volta para arr (comportamento: medirTempo também atualiza arr)
+    for (int i = 0; i < n; i++) arr[i] = copia[i];
+
+    return segundos;
+}
+
+// removerItem():
+// Permite remover um componente da mochila pelo nome.
+// Se encontrado, reorganiza o vetor para preencher a lacuna.
+/* -------------------- Entrada de componentes -------------------- */
+void cadastrarComponentes() {
+    printf("\n=== Cadastro de Componentes (max %d) ===\n", MAX_COMPONENTES);
+    int desejado;
+    char buffer[64];
+
+// listarItens():
+// Exibe uma tabela formatada com todos os componentes presentes na mochila.
+    // pedimos número de componentes a cadastrar
+    while (1) {
+        printf("Quantos componentes deseja cadastrar agora? (0 para cancelar): ");
+        if (fgets(buffer, sizeof(buffer), stdin) == NULL) return;
+        desejado = atoi(buffer);
+        if (desejado == 0) {
+            printf("Cadastro cancelado.\n");
+            return;
+        }
+        if (desejado < 0) {
+            printf("Numero invalido.\n");
+            continue;
+        }
+        if (totalComponentes + desejado > MAX_COMPONENTES) {
+            printf("Capacidade insuficiente. Voce pode cadastrar ate %d componentes. (ja cadastrados: %d)\n",
+                   MAX_COMPONENTES - totalComponentes, totalComponentes);
+        } else {
+            break;
+        }
+    }
+
+// menuDeOrdenacao():
+// Permite ao jogador escolher como deseja ordenar os itens.
+// Utiliza a função insertionSort() com o critério selecionado.
+// Exibe a quantidade de comparações feitas (análise de desempenho).
+    for (int i = 0; i < desejado; i++) {
+        Componente c;
+        printf("\nComponente %d de %d:\n", i+1, desejado);
+        lerString("  Nome: ", c.nome, TAM_NOME);
+        if (strlen(c.nome) == 0) {
+            printf("  Nome invalido. Digite novamente.\n");
+            i--; continue;
+        }
+        lerString("  Tipo (ex: controle, suporte, propulsao): ", c.tipo, TAM_TIPO);
+        // prioridade: ler com validação
+        char line[32];
+        int p = 0;
+        while (1) {
+            printf("  Prioridade (1 a 10): ");
+            if (fgets(line, sizeof(line), stdin) == NULL) { p = 1; break; }
+            p = atoi(line);
+            if (p >= 1 && p <= 10) break;
+            printf("  Valor invalido. Digite um inteiro entre 1 e 10.\n");
+        }
+        c.prioridade = p;
+
+// insertionSort():
+// Implementação do algoritmo de ordenação por inserção.
+// Funciona com diferentes critérios de ordenação:
+// - Por nome (ordem alfabética)
+// - Por tipo (ordem alfabética)
+// - Por prioridade (da mais alta para a mais baixa)
+        componentes[totalComponentes++] = c;
+    }
+
+// buscaBinariaPorNome():
+// Realiza busca binária por nome, desde que a mochila esteja ordenada por nome.
+// Se encontrar, exibe os dados do item buscado.
+// Caso contrário, informa que não encontrou o item.
+    ultimaOrdenacao = NENHUMA; // nova inserção quebra garantia de ordenação
+    printf("\n Cadastro concluido. Total de componentes: %d\n", totalComponentes);
+    mostrarComponentes(componentes, totalComponentes);
+}
+
+/* -------------------- Funções de interface para ordenar e buscar -------------------- */
+void opcaoOrdenarPorNome() {
+    if (totalComponentes == 0) {
+        printf("\n Nenhum componente para ordenar.\n");
+        return;
+    }
+    long long comps = 0;
+    double tempo = medirTempo(bubbleSortNome, componentes, totalComponentes, &comps);
+    ultimaOrdenacao = POR_NOME;
+    printf("\n Ordenacao: Bubble Sort por NOME concluida.\n");
+    printf("Comparacoes realizadas: %lld\n", comps);
+    printf("Tempo de execucao: %.6f segundos\n", tempo);
+    mostrarComponentes(componentes, totalComponentes);
+}
+
+void opcaoOrdenarPorTipo() {
+    if (totalComponentes == 0) {
+        printf("\n Nenhum componente para ordenar.\n");
+        return;
+    }
+    long long comps = 0;
+    double tempo = medirTempo(insertionSortTipo, componentes, totalComponentes, &comps);
+    ultimaOrdenacao = POR_TIPO;
+    printf("\n Ordenacao: Insertion Sort por TIPO concluida.\n");
+    printf("Comparacoes realizadas: %lld\n", comps);
+    printf("Tempo de execucao: %.6f segundos\n", tempo);
+    mostrarComponentes(componentes, totalComponentes);
+}
+
+void opcaoOrdenarPorPrioridade() {
+    if (totalComponentes == 0) {
+        printf("\n Nenhum componente para ordenar.\n");
+        return;
+    }
+    long long comps = 0;
+    double tempo = medirTempo(selectionSortPrioridade, componentes, totalComponentes, &comps);
+    ultimaOrdenacao = POR_PRIORIDADE;
+    printf("\n Ordenacao: Selection Sort por PRIORIDADE concluida.\n");
+    printf("Comparacoes realizadas: %lld\n", comps);
+    printf("Tempo de execucao: %.6f segundos\n", tempo);
+    mostrarComponentes(componentes, totalComponentes);
+}
+
+void opcaoBuscaBinaria() {
+    if (totalComponentes == 0) {
+        printf("\n Nenhum componente cadastrado para buscar.\n");
+        return;
+    }
+    if (ultimaOrdenacao != POR_NOME) {
+        printf("\n Busca binaria exige que os componentes estejam ordenados por NOME.\n");
+        printf("Por favor, aplique 'Ordenar por Nome (Bubble Sort)' antes de buscar.\n");
+        return;
+    }
+    char chave[TAM_NOME];
+    lerString("\n Digite o NOME do componente-chave a buscar: ", chave, TAM_NOME);
+    if (strlen(chave) == 0) {
+        printf("Nome invalido.\n");
+        return;
+    }
+    long long comps = 0;
+    clock_t inicio = clock();
+    int idx = buscaBinariaPorNome(componentes, totalComponentes, chave, &comps);
+    clock_t fim = clock();
+    double tempo = (double)(fim - inicio) / (double)CLOCKS_PER_SEC;
+
+    if (idx != -1) {
+        printf("\n Componente-chave encontrado no indice %d (base 1):\n", idx+1);
+        printf("Nome: %s | Tipo: %s | Prioridade: %d\n",
+               componentes[idx].nome, componentes[idx].tipo, componentes[idx].prioridade);
+    } else {
+        printf("\n Componente-chave NAO encontrado.\n");
+    }
+    printf("Comparacoes na busca binaria: %lld\n", comps);
+    printf("Tempo de busca: %.8f segundos\n", tempo);
+}
+
+/* -------------------- Menu principal -------------------- */
+void mostrarMenu() {
+    printf("\n========== TORRE DE RESGATE: (MODO MESTRE) ==========\n");
+    printf("1 - Cadastrar componentes (ate %d)\n", MAX_COMPONENTES);
+    printf("2 - Ordenar por NOME (Bubble Sort)\n");
+    printf("3 - Ordenar por TIPO (Insertion Sort)\n");
+    printf("4 - Ordenar por PRIORIDADE (Selection Sort)\n");
+    printf("5 - Busca binaria por NOME (exige ordenacao por nome)\n");
+    printf("6 - Exibir componentes atuais\n");
+    printf("0 - Sair\n");
+    printf("Escolha uma opcao: ");
+}
+
+int main() {
+    setvbuf(stdout, NULL, _IONBF, 0); // evita buffering em alguns ambientes
+    char linha[64];
+    int opcao = -1;
+
+    printf("Bem-vindo ao modulo avançado de montagem da torre de fuga!\n");
+
+    while (1) {
+        mostrarMenu();
+        if (fgets(linha, sizeof(linha), stdin) == NULL) break;
+        opcao = atoi(linha);
+
+        switch (opcao) {
+            case 1:
+                cadastrarComponentes();
+                break;
+            case 2:
+                opcaoOrdenarPorNome();
+                break;
+            case 3:
+                opcaoOrdenarPorTipo();
+                break;
+            case 4:
+                opcaoOrdenarPorPrioridade();
+                break;
+            case 5:
+                opcaoBuscaBinaria();
+                break;
+            case 6:
+                mostrarComponentes(componentes, totalComponentes);
+                break;
+            case 0:
+                printf("\n Saindo. Boa sorte na fuga!\n");
+                return 0;
+            default:
+                printf("\n Opcao invalida. Tente novamente.\n");
+        }
+    }
+
+    return 0;
+}
