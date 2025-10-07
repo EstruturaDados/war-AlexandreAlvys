@@ -1,0 +1,230 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define MAX_TEXTO 100
+#define TAM_HASH 5
+
+// ============================================
+// 🌱 NÍVEL NOVATO – ÁRVORE BINÁRIA DE SALAS
+// ============================================
+typedef struct Sala {
+    char nome[50];
+    struct Sala *esquerda;
+    struct Sala *direita;
+} Sala;
+
+Sala *criarSala(char *nome) {
+    Sala *nova = (Sala *)malloc(sizeof(Sala));
+    strcpy(nova->nome, nome);
+    nova->esquerda = nova->direita = NULL;
+    return nova;
+}
+
+void explorarSalas(Sala *atual) {
+    if (atual == NULL) return;
+
+    char opcao;
+    while (1) {
+        printf("\nVocê está na sala: %s\n", atual->nome);
+        printf("Ir para (e) esquerda, (d) direita ou (s) sair: ");
+        scanf(" %c", &opcao);
+
+        if (opcao == 's') break;
+        else if (opcao == 'e' && atual->esquerda != NULL)
+            explorarSalas(atual->esquerda);
+        else if (opcao == 'd' && atual->direita != NULL)
+            explorarSalas(atual->direita);
+        else
+            printf("🚪 Caminho inexistente!\n");
+    }
+}
+
+// ============================================
+// 🔍 NÍVEL AVENTUREIRO – ÁRVORE DE BUSCA DE PISTAS
+// ============================================
+typedef struct Pista {
+    char texto[MAX_TEXTO];
+    struct Pista *esq, *dir;
+} Pista;
+
+Pista *inserirPista(Pista *raiz, char *texto) {
+    if (raiz == NULL) {
+        Pista *nova = (Pista *)malloc(sizeof(Pista));
+        strcpy(nova->texto, texto);
+        nova->esq = nova->dir = NULL;
+        return nova;
+    }
+    if (strcmp(texto, raiz->texto) < 0)
+        raiz->esq = inserirPista(raiz->esq, texto);
+    else if (strcmp(texto, raiz->texto) > 0)
+        raiz->dir = inserirPista(raiz->dir, texto);
+    return raiz;
+}
+
+void emOrdem(Pista *raiz) {
+    if (raiz == NULL) return;
+    emOrdem(raiz->esq);
+    printf("🔎 %s\n", raiz->texto);
+    emOrdem(raiz->dir);
+}
+
+// ============================================
+// 🧠 NÍVEL MESTRE – TABELA HASH DE SUSPEITOS
+// ============================================
+typedef struct NodoPista {
+    char texto[MAX_TEXTO];
+    struct NodoPista *prox;
+} NodoPista;
+
+typedef struct Suspeito {
+    char nome[50];
+    NodoPista *pistas;
+    struct Suspeito *prox;  // colisão na hash
+    int contador;
+} Suspeito;
+
+Suspeito *tabela[TAM_HASH];
+
+int hash(char *nome) {
+    return nome[0] % TAM_HASH; // simples: pela primeira letra
+}
+
+void inicializarHash() {
+    for (int i = 0; i < TAM_HASH; i++)
+        tabela[i] = NULL;
+}
+
+Suspeito *buscarSuspeito(char *nome) {
+    int h = hash(nome);
+    Suspeito *atual = tabela[h];
+    while (atual != NULL) {
+        if (strcmp(atual->nome, nome) == 0)
+            return atual;
+        atual = atual->prox;
+    }
+    return NULL;
+}
+
+void inserirHash(char *pista, char *nomeSuspeito) {
+    int h = hash(nomeSuspeito);
+    Suspeito *sus = buscarSuspeito(nomeSuspeito);
+    if (sus == NULL) {
+        sus = (Suspeito *)malloc(sizeof(Suspeito));
+        strcpy(sus->nome, nomeSuspeito);
+        sus->pistas = NULL;
+        sus->prox = tabela[h];
+        sus->contador = 0;
+        tabela[h] = sus;
+    }
+
+    NodoPista *nova = (NodoPista *)malloc(sizeof(NodoPista));
+    strcpy(nova->texto, pista);
+    nova->prox = sus->pistas;
+    sus->pistas = nova;
+    sus->contador++;
+}
+
+void listarAssociacoes() {
+    printf("\n=== SUSPEITOS E SUAS PISTAS ===\n");
+    for (int i = 0; i < TAM_HASH; i++) {
+        Suspeito *atual = tabela[i];
+        while (atual != NULL) {
+            printf("👤 %s (%d pistas)\n", atual->nome, atual->contador);
+            NodoPista *p = atual->pistas;
+            while (p != NULL) {
+                printf("   - %s\n", p->texto);
+                p = p->prox;
+            }
+            atual = atual->prox;
+        }
+    }
+}
+
+void suspeitoMaisProvavel() {
+    Suspeito *maior = NULL;
+    for (int i = 0; i < TAM_HASH; i++) {
+        Suspeito *atual = tabela[i];
+        while (atual != NULL) {
+            if (maior == NULL || atual->contador > maior->contador)
+                maior = atual;
+            atual = atual->prox;
+        }
+    }
+    if (maior != NULL)
+        printf("\n🕵️ Suspeito mais provável: %s (%d pistas)\n", maior->nome, maior->contador);
+    else
+        printf("\nNenhum suspeito encontrado.\n");
+}
+
+// ============================================
+// 🚀 PROGRAMA PRINCIPAL
+// ============================================
+int main() {
+    // --- Mapa fixo de salas ---
+    Sala *hall = criarSala("Hall de Entrada");
+    hall->esquerda = criarSala("Biblioteca");
+    hall->direita = criarSala("Cozinha");
+    hall->esquerda->esquerda = criarSala("Sótão");
+    hall->esquerda->direita = criarSala("Jardim");
+    hall->direita->direita = criarSala("Porão");
+
+    // --- Árvore de pistas ---
+    Pista *raizPistas = NULL;
+
+    // --- Hash de suspeitos ---
+    inicializarHash();
+
+    int opcao;
+    do {
+        printf("\n=== DETECTIVE QUEST ===\n");
+        printf("1 - Explorar a mansão\n");
+        printf("2 - Adicionar pista manualmente\n");
+        printf("3 - Listar pistas em ordem\n");
+        printf("4 - Relacionar pista a suspeito\n");
+        printf("5 - Mostrar todos os suspeitos\n");
+        printf("6 - Mostrar suspeito mais provável\n");
+        printf("0 - Sair\n");
+        printf("Escolha: ");
+        scanf("%d", &opcao);
+        getchar(); // limpar buffer
+
+        if (opcao == 1) {
+            explorarSalas(hall);
+            // exemplo de coleta automática
+            raizPistas = inserirPista(raizPistas, "Pegada de barro");
+            raizPistas = inserirPista(raizPistas, "Copo quebrado");
+        }
+        else if (opcao == 2) {
+            char texto[MAX_TEXTO];
+            printf("Digite a nova pista: ");
+            fgets(texto, MAX_TEXTO, stdin);
+            texto[strcspn(texto, "\n")] = 0;
+            raizPistas = inserirPista(raizPistas, texto);
+        }
+        else if (opcao == 3) {
+            printf("\n=== PISTAS COLETADAS ===\n");
+            emOrdem(raizPistas);
+        }
+        else if (opcao == 4) {
+            char pista[MAX_TEXTO], nome[50];
+            printf("Digite o nome do suspeito: ");
+            fgets(nome, 50, stdin);
+            nome[strcspn(nome, "\n")] = 0;
+            printf("Digite a pista relacionada: ");
+            fgets(pista, MAX_TEXTO, stdin);
+            pista[strcspn(pista, "\n")] = 0;
+            inserirHash(pista, nome);
+        }
+        else if (opcao == 5) {
+            listarAssociacoes();
+        }
+        else if (opcao == 6) {
+            suspeitoMaisProvavel();
+        }
+
+    } while (opcao != 0);
+
+    printf("\n🕵️ Caso encerrado!\n");
+    return 0;
+}
